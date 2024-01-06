@@ -1,137 +1,184 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-from tkcalendar import DateEntry
+import sys
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
+                             QDateEdit, QListWidget, QMessageBox, QTreeWidget, QTreeWidgetItem, 
+                             QComboBox, QRadioButton, QButtonGroup, QTableWidget, QTableWidgetItem
+)
+from PyQt5.QtCore import QDate
+from utils import (add_transaction, calculate_summary, display_summary, 
+                   fetch_total, fetch_data, update_data_view, delete_selected_entry,
+                   clear_treeview, plot_data, clear_data)
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
-from utils import (add_transaction,
-                   calculate_summary,
-                   display_summary,
-                   fetch_data,
-                   update_data_view,
-                   delete_selected_entry,
-                   clear_treeview,
-                   plot_data)
+class TabOne(QWidget):
+    def __init__(self, db_conn):
+        super().__init__()
+        self.db_conn = db_conn
+        self.init_ui()
 
-def setup_tab1(tab1, db_conn):
-    # Income section
-    income_frame = ttk.LabelFrame(tab1, text="Income")
-    income_frame.pack(fill="both", expand="yes", padx=10, pady=5)
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        self.setup_transaction_type_dropdown(layout)
+        self.setup_date_edit(layout)
+        self.setup_transaction_fields(layout)
+        self.setup_summary_section(layout)
 
-    # Income date label and DateEntry
-    ttk.Label(income_frame, text="Date:").pack(side="left", padx=(0, 5))
-    income_date_entry = DateEntry(income_frame, width=12, background='darkblue',
-                                  foreground='white', borderwidth=2)
-    income_date_entry.pack(side="left", padx=(0, 5))
+    def setup_transaction_type_dropdown(self, layout):
+        self.transaction_type = QComboBox()
+        self.transaction_type.addItem("Income", "income")
+        self.transaction_type.addItem("Expense", "expenses")
+        layout.addWidget(QLabel("Transaction Type:"))
+        layout.addWidget(self.transaction_type)
 
-    # Income name label and entry
-    ttk.Label(income_frame, text="Description:").pack(side="top", padx=(0, 5))
-    income_name_entry = ttk.Entry(income_frame)
-    income_name_entry.pack(side="top", padx=(0, 5))
+    def setup_date_edit(self, layout):
+        self.date_edit = QDateEdit(calendarPopup=True)
+        self.date_edit.setDate(QDate.currentDate())
+        self.date_edit.setDisplayFormat("dd-MM-yyyy")
+        layout.addWidget(QLabel("Date:"))
+        layout.addWidget(self.date_edit)
 
-    # Income amount label and entry
-    ttk.Label(income_frame, text="Amount:").pack(side="top", padx=(0, 5))
-    income_amount_entry = ttk.Entry(income_frame)
-    income_amount_entry.pack(side="top", padx=(0, 5))
+    def setup_transaction_fields(self, layout):
+        self.name_line_edit = QLineEdit()
+        self.amount_line_edit = QLineEdit()
+        self.transaction_list_widget = QListWidget()
+        add_btn = QPushButton("Add Transaction")
+        add_btn.clicked.connect(self.on_add_transaction)
+        layout.addWidget(QLabel("Description:"))
+        layout.addWidget(self.name_line_edit)
+        layout.addWidget(QLabel("Amount:"))
+        layout.addWidget(self.amount_line_edit)
+        layout.addWidget(add_btn)
+        layout.addWidget(self.transaction_list_widget)
 
-    # Income list and add button
-    income_list = tk.Listbox(income_frame)
-    income_list.pack(side="top", fill="both", expand="yes")
-    income_add_button = ttk.Button(income_frame, text="Add Income", 
-                                   command=lambda: add_transaction(db_conn, income_list, income_date_entry, income_name_entry, income_amount_entry, 'income'))
-    income_add_button.pack(side="top")
+    def setup_summary_section(self, layout):
+        summary_btn = QPushButton("Calculate Summary")
+        summary_btn.clicked.connect(self.on_calculate_summary)
+        self.total_income_label = QLabel("Total Income: £0.00")
+        self.total_expenses_label = QLabel("Total Expenses: £0.00")
+        self.net_balance_label = QLabel("Net Balance: £0.00")
+        layout.addWidget(summary_btn)
+        layout.addWidget(self.total_income_label)
+        layout.addWidget(self.total_expenses_label)
+        layout.addWidget(self.net_balance_label)
 
-    # Expense section
-    expense_frame = ttk.LabelFrame(tab1, text="Expenses")
-    expense_frame.pack(fill="both", expand="yes", padx=10, pady=5)
-
-    # Expense date label and DateEntry
-    ttk.Label(expense_frame, text="Date:").pack(side="left", padx=(0, 5))
-    expense_date_entry = DateEntry(expense_frame, width=12, background='darkblue',
-                                   foreground='white', borderwidth=2)
-    expense_date_entry.pack(side="left", padx=(0, 5))
-
-    # Expense name label and entry
-    ttk.Label(expense_frame, text="Description:").pack(side="top", padx=(0, 5))
-    expense_name_entry = ttk.Entry(expense_frame)
-
-    expense_name_entry.pack(side="top", padx=(0, 5))
-
-    # Expense amount label and entry
-    ttk.Label(expense_frame, text="Amount:").pack(side="top", padx=(0, 5))
-    expense_amount_entry = ttk.Entry(expense_frame)
-    expense_amount_entry.pack(side="top", padx=(0, 5))
-
-    # Expense list and add button
-    expense_list = tk.Listbox(expense_frame)
-    expense_list.pack(side="top", fill="both", expand="yes")
-    expense_add_button = ttk.Button(expense_frame, text="Add Expense", 
-                                    command=lambda: add_transaction(db_conn, expense_list, expense_date_entry, expense_name_entry, expense_amount_entry, 'expenses'))
-    expense_add_button.pack(side="top")
-
-    # Summary button in Tab 1
-    summary_button = ttk.Button(tab1, text="Show Summary", 
-                                command=lambda: display_summary(*calculate_summary(income_list, expense_list)))
-    summary_button.pack(pady=10)
-
-def setup_tab2(tab2, db_conn):
-    # Create and pack the Treeview widget within tab2
-    tree = ttk.Treeview(tab2, columns=('Date', 'Name', 'Amount'), show='headings')
-    tree.heading('Date', text='Date')
-    tree.heading('Name', text='Name')
-    tree.heading('Amount', text='Amount')
-    tree.pack(expand=True, fill='both')
+    def on_add_transaction(self):
+        # Get the selected transaction type from the dropdown
+        transaction_type = self.transaction_type.currentData()
+        add_transaction(self.db_conn,
+                        self.transaction_list_widget,
+                        self.date_edit,
+                        self.name_line_edit,
+                        self.amount_line_edit,
+                        transaction_type)  # Example for 'income'
     
-    tree["columns"] = ("ID", "Date", "Name", "Amount")
-    tree.column("ID", width=0, stretch=tk.NO)  # Hide the ID column from the view
-    tree.heading("Date", text="Date")
-    tree.heading("Name", text="Name")
-    tree.heading("Amount", text="Amount")
+    def on_calculate_summary(self):
+        # Assuming you have functions to fetch data for income and expenses
+        income = fetch_total(self.db_conn, "income")
+        expenses = fetch_total(self.db_conn, "expenses")
+        net_balance = income - expenses
 
-    # Buttons to update the Treeview
-    view_income_button = ttk.Button(tab2, text="View Income Data", 
-                                    command=lambda: update_data_view(db_conn, 'income', tree))
-    view_income_button.pack()
+        self.total_income_label.setText(f"Total Income: £{income:.2f}")
+        self.total_expenses_label.setText(f"Total Expenses: £{expenses:.2f}")
+        self.net_balance_label.setText(f"Net Balance: £{net_balance:.2f}")
 
-    view_expenses_button = ttk.Button(tab2, text="View Expenses Data", 
-                                      command=lambda: update_data_view(db_conn, 'expenses', tree))
-    view_expenses_button.pack()
-    
-    clear_data_button = ttk.Button(tab2, text="Clear Data", 
-                                   command=lambda: clear_treeview(tree))
-    clear_data_button.pack()
-    
-    # Delete button
-    delete_button = ttk.Button(tab2, text="Delete Selected Entry", 
-                               command=lambda: delete_selected_entry(db_conn, tree, 'income' if table_selection.get() == 'income' else 'expenses'))
-    delete_button.pack()
 
-    # Radio buttons to choose between income and expenses
-    table_selection = tk.StringVar(value='income')
-    radio_income = ttk.Radiobutton(tab2, text="Income", variable=table_selection, value='income')
-    radio_expenses = ttk.Radiobutton(tab2, text="Expenses", variable=table_selection, value='expenses')
-    radio_income.pack()
-    radio_expenses.pack()
+class TabTwo(QWidget):
+    def __init__(self, db_conn):
+        super().__init__()
+        self.db_conn = db_conn
+        self.init_ui()
 
-    return tree
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        self.setup_radio_buttons(layout)
+        self.setup_table_widget(layout)
+        self.setup_buttons(layout)
 
-def setup_tab3(tab3, db_conn):
-    # Clear the frame first
-    for widget in tab3.winfo_children():
-        widget.destroy()
+    def setup_radio_buttons(self, layout):
+        self.radio_group = QButtonGroup(self)
+        income_radio = QRadioButton("Income")
+        expenses_radio = QRadioButton("Expenses")
+        self.radio_group.addButton(income_radio, 1)
+        self.radio_group.addButton(expenses_radio, 2)
+        income_radio.setChecked(True)
+        radio_layout = QHBoxLayout()
+        radio_layout.addWidget(income_radio)
+        radio_layout.addWidget(expenses_radio)
+        layout.addLayout(radio_layout)
 
-    # Fetch and plot data
-    plot_data(db_conn, tab3)
+    def setup_table_widget(self, layout):
+        self.table_widget = QTableWidget()
+        self.table_widget.setColumnCount(4)
+        self.table_widget.setHorizontalHeaderLabels(["ID", "Date", "Name", "Amount"])
+        layout.addWidget(self.table_widget)
 
-def create_menu(app):
-    menubar = tk.Menu(app)
+    def setup_buttons(self, layout):
+        self.update_btn = QPushButton("Update Data")
+        self.update_btn.clicked.connect(self.on_update_data)
+        self.clear_db_btn = QPushButton("Clear Database")
+        self.clear_db_btn.clicked.connect(self.on_clear_db)
+        layout.addWidget(self.update_btn)
+        layout.addWidget(self.clear_db_btn)
 
-    # File menu
-    file_menu = tk.Menu(menubar, tearoff=0)
-    file_menu.add_command(label="Exit", command=app.quit)
-    menubar.add_cascade(label="File", menu=file_menu)
+    def on_update_data(self):
+        selected_type = self.radio_group.checkedId()
+        table = "income" if selected_type == 1 else "expenses"
+        self.update_data_view(table)
 
-    # Help menu
-    help_menu = tk.Menu(menubar, tearoff=0)
-    help_menu.add_command(label="About", command=lambda: messagebox.showinfo("About", "Budgeting App v1.0"))
-    menubar.add_cascade(label="Help", menu=help_menu)
+    def update_data_view(self, table):
+        self.table_widget.setRowCount(0)
+        data = fetch_data(self.db_conn, table)
+        for row_data in data:
+            row = self.table_widget.rowCount()
+            self.table_widget.insertRow(row)
+            for column, data in enumerate(row_data):
+                item = QTableWidgetItem(str(data))
+                self.table_widget.setItem(row, column, item)
 
-    app.config(menu=menubar)
+    def on_clear_db(self):
+        selected_type = self.radio_group.checkedId()
+        table = "income" if selected_type == 1 else "expenses"
+        confirm_reply = QMessageBox.question(self, 'Confirm Clear', f"Are you sure you want to clear all data from '{table}'?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm_reply == QMessageBox.Yes:
+            clear_data(self.db_conn, table)
+            self.update_data_view(table)
+
+class TabThree(QWidget):
+
+    def __init__(self, db_conn):
+        super().__init__()
+        self.db_conn = db_conn
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        self.setup_plot_section(layout)
+
+    def setup_plot_section(self, layout):
+        self.canvas = FigureCanvas(Figure())
+        self.update_btn = QPushButton("Plot Data")
+        self.update_btn.clicked.connect(self.on_plot_data)
+        layout.addWidget(self.update_btn)
+        layout.addWidget(self.canvas)
+
+    def on_plot_data(self):
+        plot_data(self.db_conn, self.canvas)
+
+
+def create_main_window(db_conn):
+    app = QApplication(sys.argv)
+    main_window = QMainWindow()
+    main_window.setWindowTitle("Budgeting App")
+
+    tab_widget = QTabWidget()
+    tab_one = TabOne(db_conn)
+    tab_two = TabTwo(db_conn)
+    tab_three = TabThree(db_conn)
+
+    tab_widget.addTab(tab_one, "Add Data")
+    tab_widget.addTab(tab_two, "View Data")
+    tab_widget.addTab(tab_three, "View Graph")
+
+    main_window.setCentralWidget(tab_widget)
+    main_window.show()
+    sys.exit(app.exec_())

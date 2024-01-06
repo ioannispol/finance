@@ -1,16 +1,14 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-from tkcalendar import DateEntry
+from PyQt5.QtWidgets import QMessageBox, QTreeWidgetItem
+from PyQt5.QtCore import QDate
+import sqlite3
+import csv
+from datetime import datetime
 
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-
-
-def add_transaction(conn, transaction_list, date_entry, name_entry, amount_entry, table):
-    name = name_entry.get()
-    amount = amount_entry.get()
-    selected_date = date_entry.get_date()  # Get the selected date
-    formatted_date = selected_date.strftime("%Y-%m-%d")  # Format the date
+def add_transaction(conn, transaction_list_widget, date_edit, name_line_edit, amount_line_edit, table):
+    name = name_line_edit.text()
+    amount = amount_line_edit.text()
+    selected_date = date_edit.date().toPyDate()
+    formatted_date = selected_date.strftime("%Y-%m-%d")
 
     try:
         amount = float(amount)
@@ -19,26 +17,23 @@ def add_transaction(conn, transaction_list, date_entry, name_entry, amount_entry
                        (formatted_date, name, amount))
         conn.commit()
 
-        transaction_list.insert(tk.END, f"{formatted_date} - {name}: £{amount:.2f}")
-        name_entry.delete(0, tk.END)
-        amount_entry.delete(0, tk.END)
+        transaction_list_widget.addItem(f"{formatted_date} - {name}: £{amount:.2f}")
+        name_line_edit.clear()
+        amount_line_edit.clear()
     except ValueError:
-        messagebox.showerror("Invalid Entry", "Please enter a valid amount.")
+        QMessageBox.warning(None, "Invalid Entry", "Please enter a valid amount.")
 
-
-def calculate_summary(income_list, expense_list):
-    income = sum(float(item.split(': £')[1]) for item in income_list.get(0, tk.END))
-    expenses = sum(float(item.split(': £')[1]) for item in expense_list.get(0, tk.END))
+def calculate_summary(income_list_widget, expense_list_widget):
+    income = sum(float(item.text().split(': £')[1]) for item in income_list_widget.findItems("", Qt.MatchContains))
+    expenses = sum(float(item.text().split(': £')[1]) for item in expense_list_widget.findItems("", Qt.MatchContains))
     net_balance = income - expenses
     return income, expenses, net_balance
 
-
 def display_summary(income, expenses, net_balance):
-    messagebox.showinfo("Financial Summary",
-                        f"Total Income: £{income:.2f}\n"
-                        f"Total Expenses: £{expenses:.2f}\n"
-                        f"Net Balance: £{net_balance:.2f}")
-
+    QMessageBox.information(None, "Financial Summary",
+                            f"Total Income: £{income:.2f}\n"
+                            f"Total Expenses: £{expenses:.2f}\n"
+                            f"Net Balance: £{net_balance:.2f}")
 
 def fetch_data(conn, table):
     cursor = conn.cursor()
@@ -47,43 +42,45 @@ def fetch_data(conn, table):
     return rows
 
 
-def update_data_view(conn, table, tree):
-    """
-    Update the Treeview widget in tab2 with data from the selected table (income or expenses).
-
-    :param conn: Database connection object.
-    :param table: Table name ('income' or 'expenses') from which data is to be fetched.
-    :param tree: Treeview widget where the data will be displayed.
-    """
-    # Clear existing data in the treeview
-    for i in tree.get_children():
-        tree.delete(i)
-
-    # Fetch new data and insert it into the treeview
+def update_data_view(conn, table, tree_widget):
+    tree_widget.clear()
     data = fetch_data(conn, table)
     for row in data:
-        tree.insert('', tk.END, values=row)
-        
-def clear_treeview(tree):
-    """Clear all entries in the Treeview widget."""
-    tree.delete(*tree.get_children())
+        # Create a QTreeWidgetItem for each row
+        item = QTreeWidgetItem(tree_widget)
+        # Set values for each column
+        for i, value in enumerate(row):
+            item.setText(i, str(value))
 
 
-def delete_selected_entry(conn, tree, table):
-    selected_item = tree.selection()
-    if not selected_item:
-        messagebox.showinfo("Selection Required", "Please select an item to delete.")
+
+def clear_treeview(tree_widget):
+    tree_widget.clear()
+
+
+def clear_data(conn, table):
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table}")
+        conn.commit()
+        QMessageBox.information(None, "Data Cleared", f"All data from '{table}' has been cleared.")
+    except sqlite3.Error as e:
+        QMessageBox.warning(None, "Database Error", f"An error occurred: {e}")
+
+
+def delete_selected_entry(conn, tree_widget, table):
+    selected_items = tree_widget.selectedItems()
+    if not selected_items:
+        QMessageBox.information(None, "Selection Required", "Please select an item to delete.")
         return
 
-    # Confirm deletion
-    if messagebox.askyesno("Confirm Deletion", "Are you sure you want to delete this item?"):
-        for item in selected_item:
-            # Fetch the ID of the selected item
-            item_id = tree.item(item, 'values')[0]  # ID is the first element in values
+    if QMessageBox.question(None, "Confirm Deletion", "Are you sure you want to delete this item?") == QMessageBox.Yes:
+        for item in selected_items:
+            item_id = item.text().split(" - ")[0]
             cursor = conn.cursor()
             cursor.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
             conn.commit()
-        update_data_view(conn, table, tree)
+        update_data_view(conn, table, tree_widget)
 
 
 def fetch_monthly_summary(conn):
@@ -100,29 +97,42 @@ def fetch_monthly_summary(conn):
         GROUP BY Month
         ORDER BY Month
     """)
-    rows = cursor.fetchall()
-    return rows
-     
-def plot_data(conn, frame):
-    # Clear previous figure
-    for widget in frame.winfo_children():
-        widget.destroy()
+    return cursor.fetchall()
 
+
+def plot_data(conn, matplotlib_widget):
     data = fetch_monthly_summary(conn)
     if data:
         months, incomes, expenses = zip(*data)
-
-        fig, ax = plt.subplots()
+        matplotlib_widget.figure.clear()
+        ax = matplotlib_widget.figure.add_subplot(111)
         ax.plot(months, incomes, label='Income', marker='o')
         ax.plot(months, expenses, label='Expenses', marker='o')
         ax.set_xlabel('Month')
         ax.set_ylabel('Amount')
         ax.set_title('Monthly Income and Expenses')
         ax.legend()
-
-        canvas = FigureCanvasTkAgg(fig, master=frame)  
-        canvas_widget = canvas.get_tk_widget()
-        canvas_widget.pack(expand=True, fill='both')
-        canvas.draw()
+        matplotlib_widget.draw()
     else:
-        tk.Label(frame, text="No data available to plot.").pack()
+        # Handle case with no data
+        pass
+
+
+def fetch_total(conn, table):
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT SUM(amount) FROM {table}")
+    result = cursor.fetchone()
+    return result[0] if result[0] is not None else 0
+
+
+def export_data_to_file(conn, file_path):
+    cursor = conn.cursor()
+    # Assuming you have a unified way to fetch all relevant data
+    cursor.execute("SELECT * FROM income UNION ALL SELECT * FROM expenses")
+    rows = cursor.fetchall()
+
+    with open(file_path, 'w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(['ID', 'Date', 'Name', 'Amount'])  # Writing headers
+        for row in rows:
+            writer.writerow(row)
