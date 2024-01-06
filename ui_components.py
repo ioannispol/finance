@@ -11,7 +11,7 @@ from utils import (add_transaction,
                    clear_treeview,
                    plot_data)
 
-def setup_tab1(tab1):
+def setup_tab1(tab1, db_conn):
     # Income section
     income_frame = ttk.LabelFrame(tab1, text="Income")
     income_frame.pack(fill="both", expand="yes", padx=10, pady=5)
@@ -72,7 +72,7 @@ def setup_tab1(tab1):
                                 command=lambda: display_summary(*calculate_summary(income_list, expense_list)))
     summary_button.pack(pady=10)
 
-def setup_tab2(tab2):
+def setup_tab2(tab2, db_conn):
     # Create and pack the Treeview widget within tab2
     tree = ttk.Treeview(tab2, columns=('Date', 'Name', 'Amount'), show='headings')
     tree.heading('Date', text='Date')
@@ -113,13 +113,13 @@ def setup_tab2(tab2):
 
     return tree
 
-def setup_tab3(tab3):
+def setup_tab3(tab3, db_conn):
     # Clear the frame first
-    for widget in frame.winfo_children():
+    for widget in tab3.winfo_children():
         widget.destroy()
 
     # Fetch and plot data
-    plot_data(conn, frame)
+    plot_data(db_conn, tab3)
 
 def create_menu(app):
     menubar = tk.Menu(app)

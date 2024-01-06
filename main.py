@@ -22,9 +22,9 @@ def main():
     notebook.add(tab3, text="View Graph")
     notebook.pack(expand=True, fill='both')
 
-    setup_tab1(tab1)
-    setup_tab2(tab2)
-    setup_tab3(tab3)
+    setup_tab1(tab1, db_conn)
+    setup_tab2(tab2, db_conn)
+    setup_tab3(tab3, db_conn)
 
     app.mainloop()
 

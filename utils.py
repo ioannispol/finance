@@ -84,7 +84,25 @@ def delete_selected_entry(conn, tree, table):
             cursor.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
             conn.commit()
         update_data_view(conn, table, tree)
-        
+
+
+def fetch_monthly_summary(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT strftime('%Y-%m', date) as Month, 
+               SUM(case when table_name = 'income' then amount else 0 end) as Total_Income,
+               SUM(case when table_name = 'expenses' then amount else 0 end) as Total_Expenses
+        FROM (
+            SELECT date, amount, 'income' as table_name FROM income
+            UNION ALL
+            SELECT date, amount, 'expenses' FROM expenses
+        )
+        GROUP BY Month
+        ORDER BY Month
+    """)
+    rows = cursor.fetchall()
+    return rows
+     
 def plot_data(conn, frame):
     # Clear previous figure
     for widget in frame.winfo_children():
