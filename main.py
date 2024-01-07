@@ -2,7 +2,9 @@ import sys
 
 from PyQt5.QtWidgets import \
     QApplication, QMainWindow, QTabWidget, QAction, QMessageBox, QFileDialog
-
+from PyQt5.QtGui import QColor, QPalette
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
 from database import create_connection, setup_database
 from ui_components import TabOne, TabTwo, TabThree
 from utils import export_data_to_file
@@ -62,9 +64,37 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Success", "Data saved successfully.")
 
 
+def set_dark_theme(app):
+    app.setStyle("Fusion")  # Optional: set style to 'Fusion' which works well with dark themes
+
+    palette = QPalette()
+
+    # Define colors
+    dark_color = QColor(45, 45, 45)
+    disabled_color = QColor(127, 127, 127)
+
+    palette.setColor(QPalette.Window, dark_color)
+    palette.setColor(QPalette.WindowText, Qt.white)
+    palette.setColor(QPalette.Base, QColor(18, 18, 18))
+    palette.setColor(QPalette.AlternateBase, dark_color)
+    palette.setColor(QPalette.ToolTipBase, Qt.white)
+    palette.setColor(QPalette.ToolTipText, Qt.white)
+    palette.setColor(QPalette.Text, Qt.white)
+    palette.setColor(QPalette.Disabled, QPalette.Text, disabled_color)
+    palette.setColor(QPalette.Button, dark_color)
+    palette.setColor(QPalette.ButtonText, Qt.white)
+    palette.setColor(QPalette.Disabled, QPalette.ButtonText, disabled_color)
+    palette.setColor(QPalette.BrightText, Qt.red)
+    palette.setColor(QPalette.Link, QColor(42, 130, 218))
+    palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+    palette.setColor(QPalette.HighlightedText, Qt.black)
+
+    app.setPalette(palette)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    set_dark_theme(app)
     db_conn = create_connection("budgeting.db")
     setup_database(db_conn)
     mainWin = MainWindow(db_conn)
