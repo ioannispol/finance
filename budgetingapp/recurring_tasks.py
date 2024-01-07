@@ -58,12 +58,17 @@ class RecurringTransactionTab(QWidget):
         self.load_recurring_transactions()
 
         layout.addWidget(self.table_widget)
+        
+        # Add Clear Database button
+        clear_db_button = QPushButton("Clear Database")
+        clear_db_button.clicked.connect(self.clear_database)
+        layout.addWidget(clear_db_button)
 
     def add_recurring_transaction(self):
         type = self.type_combo_box.currentText().lower()
         name = self.name_line_edit.text()
         amount = self.amount_line_edit.text()
-        start_date = self.start_date_edit.date().toString("yyyy-MM-dd")
+        start_date = self.start_date_edit.date().toString("dd-MM-yyyy")
         frequency = self.frequency_combo_box.currentText().lower()
 
         # Validate input
@@ -93,5 +98,22 @@ class RecurringTransactionTab(QWidget):
                 self.table_widget.insertRow(current_row)
                 for column, item in enumerate(row):
                     self.table_widget.setItem(current_row, column, QTableWidgetItem(str(item)))
+        except sqlite3.Error as e:
+            QMessageBox.warning(self, "Database Error", f"An error occurred: {e}")
+            
+    def clear_database(self):
+        confirm_reply = QMessageBox.question(self, 'Confirm Clear', 
+                                             "Are you sure you want to clear all recurring transactions?", 
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm_reply == QMessageBox.Yes:
+            self.execute_clear_database()
+            
+    def execute_clear_database(self):
+        try:
+            cursor = self.db_conn.cursor()
+            cursor.execute("DELETE FROM recurring_transactions")
+            self.db_conn.commit()
+            self.load_recurring_transactions()  # Reload to reflect changes
+            QMessageBox.information(self, "Success", "All recurring transactions have been cleared.")
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Database Error", f"An error occurred: {e}")

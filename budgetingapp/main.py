@@ -3,12 +3,12 @@ import sys
 from PyQt5.QtWidgets import \
     QApplication, QMainWindow, QTabWidget, QAction, QMessageBox, QFileDialog, QDialog
 from PyQt5.QtGui import QColor, QPalette
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 from database import create_connection, setup_database
 from ui_components import TabOne, TabTwo, TabThree
 from utils import export_data_to_file
-from authentication import create_user, LoginDialog, add_default_user
+from budgetingapp.authentication import create_user, LoginDialog, add_default_user
 from database import \
     setup_user_database, setup_recurring_transactions_table, sync_recurring_transactions_to_main
 from recurring_tasks import RecurringTransactionTab
@@ -36,6 +36,11 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.recurring_tab, "Recurring Transactions")
         self.tab_widget.addTab(self.tab_three, "View Graph")
         self.create_menu_bar()
+        
+        # Setup a timer to sync recurring transactions
+        self.sync_timer = QTimer(self)
+        self.sync_timer.timeout.connect(lambda: self.sync_recurring_transactions())
+        self.sync_timer.start(60000)  # Time in milliseconds (60000 ms = 1 minute)
 
     def create_menu_bar(self):
         menu_bar = self.menuBar()
@@ -69,6 +74,10 @@ class MainWindow(QMainWindow):
         if file_path:
             export_data_to_file(self.db_conn, file_path)
             QMessageBox.information(self, "Success", "Data saved successfully.")
+
+    def sync_recurring_transactions(self):
+        sync_recurring_transactions_to_main(self.db_conn)
+        # Optionally, refresh views if necessary
 
 
 def set_dark_theme(app):
